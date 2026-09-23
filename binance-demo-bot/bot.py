@@ -19,6 +19,8 @@ from datetime import datetime, timezone
 
 import ccxt
 
+import notify
+from notify import load_env
 from strategy import signal
 
 TRADES_FILE = "trades.csv"
@@ -26,17 +28,6 @@ TRADES_FILE = "trades.csv"
 
 class SkipCheck(Exception):
     """Raised to end the current check early, e.g. when a buy is declined."""
-
-
-def load_env(path=".env"):
-    if not os.path.exists(path):
-        return
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                key, value = line.split("=", 1)
-                os.environ.setdefault(key.strip(), value.strip())
 
 
 def make_exchange(mode):
@@ -72,6 +63,7 @@ def record_trade(side, symbol, qty, price, reason):
 
 def ask_approval(action):
     """Ask on the terminal before any order. Anything but "y" means no."""
+    notify.send(f"Approval needed on your PC: {action}")
     try:
         answer = input(f"\a[{datetime.now().strftime('%H:%M:%S')}] APPROVAL NEEDED: {action}. Place this order? [y/N] ")
     except EOFError:
@@ -129,6 +121,8 @@ def main():
         pnl = (price - entry_price) * qty
         realized_pnl += pnl
         log(f"SELL {qty} {base} @ {price:.2f} ({reason}) pnl={pnl:+.2f} total={realized_pnl:+.2f} USDT")
+        if not args.dry_run:
+            notify.send(f"SOLD {qty} {base} at {price:.2f} ({reason}). Trade: {pnl:+.2f} USDT, total: {realized_pnl:+.2f} USDT")
         record_trade("sell", args.symbol, qty, price, reason)
         position_qty, entry_price = 0.0, None
 
@@ -157,6 +151,8 @@ def main():
                     qty = order.get("filled") or qty
                 position_qty, entry_price = qty, price
                 log(f"BUY {qty} {base} @ {price:.2f} (sma-cross-up)")
+                if not args.dry_run:
+                    notify.send(f"BOUGHT {qty} {base} at {price:.2f} (~{qty * price:.2f} USDT)")
                 record_trade("buy", args.symbol, qty, price, "sma-cross-up")
             else:
                 held = f" holding {position_qty} {base} from {entry_price:.2f}" if position_qty else ""
@@ -168,6 +164,7 @@ def main():
                     sell(price, "max-loss")
                 held = f" Open position left as is: {position_qty} {base}." if position_qty else ""
                 log(f"Max loss of {args.max_loss_usdt} USDT reached. Stopping.{held}")
+                notify.send(f"Bot stopped: max loss of {args.max_loss_usdt} USDT reached.{held}")
                 break
         except SkipCheck:
             pass

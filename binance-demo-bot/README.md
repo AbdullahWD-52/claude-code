@@ -73,6 +73,25 @@ python report.py
 
 It shows your result after fees, win rate, average win and loss, profit factor (above 1 means the strategy makes money), results by coin and by exit reason, your worst trades, and anything still held.
 
+## Phone alerts (Telegram)
+
+The bot and scanner can message your phone:
+
+- **Approval needed:** the bot is waiting for your `y` on the PC.
+- **Bought / sold:** after each order, with that trade's profit or loss and your running total.
+- **Bot stopped:** the loss limit was reached.
+- **Scanner setup:** a coin had a fresh cross up in a clean uptrend (each coin at most once an hour).
+
+Setup, once:
+
+1. In Telegram, message **@BotFather**, send `/newbot`, and copy the token.
+2. Add `TELEGRAM_BOT_TOKEN=<token>` to your `.env`.
+3. Send "hi" to your new bot in Telegram.
+4. Run `python notify.py --setup` and add the `TELEGRAM_CHAT_ID=...` line it prints to `.env`.
+5. Run `python notify.py --test`. You should get a message.
+
+You still approve orders on the PC. The phone message just tells you it's waiting. If Telegram isn't set up or is down, everything keeps working without alerts.
+
 ## Run it
 
 ```

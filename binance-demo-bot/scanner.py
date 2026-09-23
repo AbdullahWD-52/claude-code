@@ -15,6 +15,7 @@ from datetime import datetime
 
 import ccxt
 
+import notify
 from indicators import atr_pct, rsi, volume_ratio
 from strategy import sma, signal
 
@@ -98,7 +99,7 @@ def print_table(rows, timeframe):
     if rows and rows[0]["clean_setup"]:
         top = rows[0]
         stop = max(1.0, round(top["atr_pct"] * 2, 1))
-        print(f"\nTo demo-trade #1 (dry run first, stop-loss about 2x its usual move):")
+        print("\nTo demo-trade #1 (dry run first, stop-loss about 2x its usual move):")
         print(f"  python bot.py --symbol {top['symbol']} --timeframe {timeframe} --stop-loss-pct {stop} --dry-run")
     else:
         print("\nNo clean setup right now (uptrend that isn't overbought or already pumped). Waiting is fine.")
@@ -142,12 +143,20 @@ def main():
     p.add_argument("--csv", help="also append results to this CSV file")
     args = p.parse_args()
 
+    notify.load_env()
     exchange = ccxt.binance({"enableRateLimit": True, "options": {"defaultType": "spot"}})
     exchange.load_markets()
+    alerted = {}  # symbol -> time of last alert, so the same coin isn't sent every scan
     while True:
         try:
             rows = scan(exchange, args)
             print_table(rows, args.timeframe)
+            for r in rows:
+                if r["cross"] == "buy" and r["clean_setup"] and time.time() - alerted.get(r["symbol"], 0) > 3600:
+                    alerted[r["symbol"]] = time.time()
+                    notify.send(f"Scanner: {r['symbol']} new cross up on {args.timeframe}, "
+                                f"RSI {r['rsi']:.0f}, 24h {r['change_24h']:+.1f}%, volume x{r['vol_x']:.1f}. "
+                                f"Check it before trading.")
             if args.csv:
                 save_csv(rows, args.csv)
         except ccxt.NetworkError as e:
