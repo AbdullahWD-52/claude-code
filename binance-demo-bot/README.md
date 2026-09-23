@@ -1,6 +1,6 @@
 # Binance Demo Trading Bot
 
-A small bot that trades one coin pair on **Binance Demo Trading**, where the money is fake. It has no real-money mode. Use it to see how a strategy behaves before you decide anything.
+A small bot, scanner and report for trading one coin pair on **Binance Demo Trading**, where the money is fake. It has no real-money mode. Use it to see how a strategy behaves before you decide anything.
 
 ## What it does
 
@@ -34,6 +34,44 @@ All of these numbers can be changed with options (see below).
    - Log in at https://demo.binance.com
    - Go to **API Management** (https://demo.binance.com/en/my/settings/api-management) and create a key.
 4. Copy `.env.example` to a new file named `.env` and paste the key and secret into it. Never share this file or commit it; it's already in `.gitignore`.
+
+## Find a coin: the scanner
+
+`scanner.py` checks the 30 busiest USDT coins on Binance and shows a table like this:
+
+```
+ #  Coin                Price   24h %   Vol 24h Trend  RSI   Move Vol x  Notes
+ 1  SOL/USDT          151.230    +3.1      850M    up   58  0.62%   2.4  NEW CROSS UP, volume spike
+ 2  BTC/USDT          108000     +1.2     2100M    up   66  0.31%   1.1
+ 3  PEPE/USDT        0.00001    +24.0      400M    up   81  2.40%   3.0  overbought, already pumped, very volatile
+```
+
+- **Trend:** `up` when the short-term average is above the long-term one.
+- **RSI:** momentum from 0 to 100. Above 70 means it has risen a lot and may pull back (overbought). Below 30 means it has fallen a lot (oversold).
+- **Move:** how much the price usually moves in one candle. Bigger means riskier.
+- **Vol x:** the latest volume compared with normal. `2.0` means twice as much trading as usual.
+- **Ranking:** a fresh cross up in a calm uptrend ranks first. Coins that are overbought or already pumped more than 15% today are pushed down, because buying after a big pump is how most people lose money fast.
+- When there's a clean setup, the scanner prints the command to dry-run the bot on that coin, with a stop-loss set to about twice its usual move. When there isn't one, it says so. Waiting is a valid choice.
+
+```
+python scanner.py                  # scan once
+python scanner.py --watch 120      # rescan every 2 minutes
+python scanner.py --only-signals   # only coins with a fresh cross up
+python scanner.py --timeframe 1h   # slower, fewer false signals
+python scanner.py --csv scans.csv  # keep a history of scans
+```
+
+The scanner only reads public prices. It needs no keys and never places orders.
+
+## Check your results: the report
+
+After the bot has made some trades, run:
+
+```
+python report.py
+```
+
+It shows your result after fees, win rate, average win and loss, profit factor (above 1 means the strategy makes money), results by coin and by exit reason, your worst trades, and anything still held.
 
 ## Run it
 
