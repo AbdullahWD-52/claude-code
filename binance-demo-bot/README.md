@@ -10,7 +10,12 @@ A small bot that trades one coin pair on **Binance Demo Trading**, where the mon
   - the price drops 3% below the buy price (stop-loss)
   - the price rises 5% above the buy price (take-profit)
   - the 9-candle average crosses back below the 21-candle average
-- **Safety:** it stops completely once it has lost 100 USDT in total. It only ever sells what it bought itself.
+- **Safety:** it stops completely once it has lost 100 USDT in total (if you decline that last sell, the coin stays in your demo account). It only ever sells what it bought itself.
+- **It asks you before every order.** Nothing is bought or sold until you type `y` and press Enter. Anything else (or just Enter) means no:
+  ```
+  APPROVAL NEEDED: BUY 0.00046 BTC for ~50.00 USDT at ~108000.00. Place this order? [y/N]
+  ```
+  If you decline a buy, it skips that signal. If you decline a sell, it keeps holding and asks again at the next check while the sell condition is still true. While it waits for your answer it does nothing else, so a decision you leave unanswered can go stale as the price moves.
 - Every trade is saved to `trades.csv`.
 
 All of these numbers can be changed with options (see below).

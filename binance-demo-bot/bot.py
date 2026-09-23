@@ -6,6 +6,8 @@ Binance Demo Trading (demo.binance.com) or the Spot Testnet
 
     python bot.py --dry-run      # print signals, place no orders
     python bot.py                # trade on Binance Demo Trading
+
+Every buy and sell waits for you to type "y" in the terminal first.
 """
 
 import argparse
@@ -20,6 +22,10 @@ import ccxt
 from strategy import signal
 
 TRADES_FILE = "trades.csv"
+
+
+class SkipCheck(Exception):
+    """Raised to end the current check early, e.g. when a buy is declined."""
 
 
 def load_env(path=".env"):
@@ -64,6 +70,15 @@ def record_trade(side, symbol, qty, price, reason):
                          side, symbol, qty, price, round(qty * price, 2), reason])
 
 
+def ask_approval(action):
+    """Ask on the terminal before any order. Anything but "y" means no."""
+    try:
+        answer = input(f"\a[{datetime.now().strftime('%H:%M:%S')}] APPROVAL NEEDED: {action}. Place this order? [y/N] ")
+    except EOFError:
+        return False
+    return answer.strip().lower() in ("y", "yes")
+
+
 def closed_closes(exchange, symbol, timeframe, limit):
     candles = exchange.fetch_ohlcv(symbol, timeframe, limit=limit + 1)
     return [c[4] for c in candles[:-1]]  # drop the still-open candle
@@ -106,6 +121,9 @@ def main():
         nonlocal position_qty, entry_price, realized_pnl
         qty = float(exchange.amount_to_precision(args.symbol, position_qty))
         if not args.dry_run:
+            if not ask_approval(f"SELL {qty} {base} at ~{price:.2f} ({reason})"):
+                log(f"Sell declined, still holding {position_qty} {base}.")
+                return
             order = exchange.create_market_sell_order(args.symbol, qty)
             price = order.get("average") or price
         pnl = (price - entry_price) * qty
@@ -131,6 +149,9 @@ def main():
             elif sig == "buy":
                 qty = float(exchange.amount_to_precision(args.symbol, args.order_usdt / price))
                 if not args.dry_run:
+                    if not ask_approval(f"BUY {qty} {base} for ~{qty * price:.2f} USDT at ~{price:.2f}"):
+                        log("Buy declined, skipping this signal.")
+                        raise SkipCheck
                     order = exchange.create_market_buy_order(args.symbol, qty)
                     price = order.get("average") or price
                     qty = order.get("filled") or qty
@@ -145,8 +166,11 @@ def main():
             if realized_pnl + open_pnl <= -args.max_loss_usdt:
                 if position_qty:
                     sell(price, "max-loss")
-                log(f"Max loss of {args.max_loss_usdt} USDT reached. Stopping.")
+                held = f" Open position left as is: {position_qty} {base}." if position_qty else ""
+                log(f"Max loss of {args.max_loss_usdt} USDT reached. Stopping.{held}")
                 break
+        except SkipCheck:
+            pass
         except ccxt.NetworkError as e:
             log(f"Network error, will retry: {e}")
         except ccxt.ExchangeError as e:
